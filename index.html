@@ -1,1 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shepherding Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
 
+    <script>
+        // Game configuration
+        const config = {
+            canvasWidth: 800,
+            canvasHeight: 600,
+            sheepCount: 20,
+            sheepSpeed: 1,
+            dogSpeed: 2,
+            dogAcceleration: 0.1,
+            dogRadius: 10,
+            sheepRadius: 5,
+            fenceRadius: 100
+        };
+
+        // Game state
+        let gameState = {
+            score: 0,
+            time: 0,
+            level: 1,
+            gameOver: false
+        };
+
+        // Game entities
+        class Sheep {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = config.sheepRadius;
+                this.speed = config.sheepSpeed;
+                this.direction = Math.random() * Math.PI * 2;
+            }
+
+            update() {
+                // Update sheep position based on direction and speed
+                this.x += Math.cos(this.direction) * this.speed;
+                this.y += Math.sin(this.direction) * this.speed;
+
+                // Keep sheep within canvas bounds
+                if (this.x < this.radius) this.x = this.radius;
+                if (this.x > config.canvasWidth - this.radius) this.x = config.canvasWidth - this.radius;
+                if (this.y < this.radius) this.y = this.radius;
+                if (this.y > config.canvasHeight - this.radius) this.y = config.canvasHeight - this.radius;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+                ctx.strokeStyle = 'black';
+                ctx.stroke();
+            }
+        }
+
+        class Dog {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = config.dogRadius;
+                this.speed = config.dogSpeed;
+                this.acceleration = config.dogAcceleration;
+                this.vx = 0;
+                this.vy = 0;
+            }
+
+            update() {
+                // Update dog velocity based on user input
+                if (keyState.ArrowUp) this.vy -= this.acceleration;
+                if (keyState.ArrowDown) this.vy += this.acceleration;
+                if (keyState.ArrowLeft) this.vx -= this.acceleration;
+                if (keyState.ArrowRight) this.vx += this.acceleration;
+
+                // Apply friction to slow down the dog
+                this.vx *= 0.95;
+                this.vy *= 0.95;
+
+                // Update dog position based on velocity
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Keep dog within canvas bounds
+                if (this.x < this.radius) {
+                    this.x = this.radius;
+                    this.vx = 0;
+                }
+                if (this.x > config.canvasWidth - this.radius) {
+                    this.x = config.canvasWidth - this.radius;
+                    this.vx = 0;
+                }
+                if (this.y < this.radius) {
+                    this.y = this.radius;
+                    this.vy = 0;
+                }
+                if (this.y > config.canvasHeight - this.radius) {
+                    this.y = config.canvasHeight - this.radius;
+                    this.vy = 0;
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'brown';
+                ctx.fill();
+                ctx.strokeStyle = 'black';
+                ctx.stroke();
+            }
+        }
+
+        class Fence {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = config.fenceRadius;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = 'green';
+                ctx.stroke();
+            }
+        }
+
+        // Game objects
+        let sheep = [];
+        let dog;
+        let fence;
+
+        // User input
+        let keyState = {};
+
+        // Game loop
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            let deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            // Update game state
+            update(deltaTime);
+
+            // Render game
+            render();
+
+            // Request next frame
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update(deltaTime) {
+            // Update sheep positions
+            sheep.forEach(sheep => sheep.update());
+
+            // Update dog position
+            dog.update();
+
+            // Check collision between dog and sheep
+            sheep.forEach(sheep => {
+                let distX = sheep.x - dog.x;
+                let distY = sheep.y - dog.y;
+                let distance = Math.sqrt(distX * distX + distY * distY);
+
+                if (distance < sheep.radius + dog.radius) {
+                    // Sheep caught by the dog
+                    let index = sheep.indexOf(sheep);
+                    sheep.splice(index, 1);
+                    gameState.score++;
+                }
+            });
+
+            // Check if all sheep are caught
+            if (sheep.length === 0) {
+                gameState.level++;
+                resetGame();
+            }
+
+            // Update game time
+            gameState.time += deltaTime;
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, config.canvasWidth, config.canvasHeight);
+
+            // Render sheep
+            sheep.forEach(sheep => sheep.draw());
+
+            // Render dog
+            dog.draw();
+
+            // Render fence
+            fence.draw();
+
+            // Render score and level
+            ctx.font = '20px Arial';
+            ctx.fillStyle = 'black';
+            ctx.fillText(`Score: ${gameState.score}`, 10, 30);
+            ctx.fillText(`Level: ${gameState.level}`, 10, 60);
+        }
+
+        // Game initialization
+        function initGame() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            canvas.width = config.canvasWidth;
+            canvas.height = config.canvasHeight;
+
+            resetGame();
+
+            // Start game loop
+            gameLoop(0);
+        }
+
+        // Reset game
+        function resetGame() {
+            // Reset game state
+            gameState.score = 0;
+            gameState.time = 0;
+            gameState.gameOver = false;
+
+            // Create sheep
+            sheep = [];
+            for (let i = 0; i < config.sheepCount; i++) {
+                let x = Math.random() * (config.canvasWidth - config.sheepRadius * 2) + config.sheepRadius;
+                let y = Math.random() * (config.canvasHeight - config.sheepRadius * 2) + config.sheepRadius;
+                sheep.push(new Sheep(x, y));
+            }
+
+            // Create dog
+            let dogX = config.canvasWidth / 2;
+            let dogY = config.canvasHeight / 2;
+            dog = new Dog(dogX, dogY);
+
+            // Create fence
+            let fenceX = config.canvasWidth / 2;
+            let fenceY = config.canvasHeight / 2;
+            fence = new Fence(fenceX, fenceY);
+        }
+
+        // User input handling
+        document.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('keyup', handleKeyUp);
+
+        function handleKeyDown(event) {
+            keyState[event.code] = true;
+        }
+
+        function handleKeyUp(event) {
+            keyState[event.code] = false;
+        }
+
+        // Start the game
+        initGame();
+    </script>
+</body>
+</html>
